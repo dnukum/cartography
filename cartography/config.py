@@ -115,6 +115,12 @@ class Config:
     :param snipeit_token: Token used to authenticate to the SnipeIT data provider. Optional.
     :type snipeit_tenant_id: string
     :param snipeit_tenant_id: Token used to authenticate to the SnipeIT data provider. Optional.
+    :type o365_tenant_id: str
+    :param o365_tenant_id: The Microsoft tenant ID for O365 API access. Optional.
+    :type o365_client_id: str
+    :param o365_client_id: The Microsoft client ID for O365 API access. Optional.
+    :type o365_client_secret: str
+    :param o365_client_secret: The Microsoft client secret for O365 API access. Optional.
     """
 
     def __init__(
@@ -176,6 +182,9 @@ class Config:
         snipeit_base_uri=None,
         snipeit_token=None,
         snipeit_tenant_id=None,
+        o365_tenant_id=None,
+        o365_client_id=None,
+        o365_client_secret=None,
     ):
         self.neo4j_uri = neo4j_uri
         self.neo4j_user = neo4j_user
@@ -234,3 +243,6 @@ class Config:
         self.snipeit_base_uri = snipeit_base_uri
         self.snipeit_token = snipeit_token
         self.snipeit_tenant_id = snipeit_tenant_id
+        self.o365_tenant_id = o365_tenant_id
+        self.o365_client_id = o365_client_id
+        self.o365_client_secret = o365_client_secret

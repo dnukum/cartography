@@ -58,6 +58,7 @@ TOP_LEVEL_MODULES = OrderedDict({  # preserve order so that the default sync alw
     'semgrep': cartography.intel.semgrep.start_semgrep_ingestion,
     'snipeit': cartography.intel.snipeit.start_snipeit_ingestion,
     'analysis': cartography.intel.analysis.run,
+    'o365': cartography.intel.o365.start_o365_ingestion,
 })
 
 
