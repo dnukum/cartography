@@ -1,0 +1,12 @@
+{
+    "kind": "admin#directory#members",
+    "members": [
+      {
+        "id": "mock123456",
+        "email": "test.user@example.com",
+        "role": "MEMBER",
+        "type": "USER"
+      }
+    ]
+  }
+  

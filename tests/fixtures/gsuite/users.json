@@ -1,0 +1,21 @@
+{
+    "kind": "admin#directory#users",
+    "users": [
+      {
+        "id": "mock123456",
+        "primaryEmail": "test.user@example.com",
+        "name": {
+          "givenName": "Test",
+          "familyName": "User",
+          "fullName": "Test User"
+        },
+        "isAdmin": false,
+        "isDelegatedAdmin": false,
+        "creationTime": "2023-01-01T00:00:00.000Z",
+        "lastLoginTime": "2023-01-02T00:00:00.000Z"
+      }
+    ]
+  }
+  
+  
+  

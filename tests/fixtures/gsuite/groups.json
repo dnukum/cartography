@@ -1,0 +1,12 @@
+{
+    "kind": "admin#directory#groups",
+    "groups": [
+      {
+        "id": "mockgroup123",
+        "email": "test-group@example.com",
+        "name": "Test Group",
+        "description": "A test group for GSuite integration testing",
+        "adminCreated": true
+      }
+    ]
+  }
