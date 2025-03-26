@@ -1,0 +1,195 @@
+import unittest
+import os
+import requests
+from neo4j import GraphDatabase
+from .test_o365_basic import TestO365BasicFunctionality  # Correct import
+
+class TestO365Integration(TestO365BasicFunctionality):  # Proper inheritance
+    def setUp(self):
+        # Inherit parent class setup including credentials and auth
+        super().setUp()  
+        
+        # Perform authentication once for all tests
+        if not hasattr(self, 'access_token'):
+            self.test_can_authenticate_with_graph_api()  # Set access_token
+            
+        self.headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+
+    #Helper method to get current user id
+    def get_current_user_id(self, headers):
+        me_response = requests.get("https://graph.microsoft.com/v1.0/me", headers=headers)
+        if me_response.status_code == 200:
+            return me_response.json().get('id')
+        
+        # Fallback to first user in directory
+        users_response = requests.get("https://graph.microsoft.com/v1.0/users?$top=1", headers=headers)
+        users = users_response.json().get('value', [])
+        if users:
+            return users[0].get('id')
+        
+        raise Exception("Could not determine a user ID for testing")
+
+
+    def _get_current_user_email(self):
+        """Helper method to get current user email."""
+        me_response = requests.get("https://graph.microsoft.com/v1.0/me", headers=self.headers)
+        if me_response.status_code == 200:
+            return me_response.json().get('userPrincipalName')
+        
+        # Fallback to first user in directory
+        users_response = requests.get("https://graph.microsoft.com/v1.0/users?$top=1", headers=self.headers)
+        users = users_response.json().get('value', [])
+        if users:
+            return users[0].get('userPrincipalName')
+        raise Exception("Could not determine a user email for testing")
+
+    def test_authentication_flow_with_external_systems(self):
+        """Test authentication flow with external systems."""
+        endpoints = [
+            "https://graph.microsoft.com/v1.0/me",
+            "https://graph.microsoft.com/v1.0/users",
+            "https://graph.microsoft.com/v1.0/groups"
+        ]
+        
+        for endpoint in endpoints:
+            response = requests.get(endpoint, headers=self.headers)
+            self.assertEqual(response.status_code, 200, 
+                           f"Failed authentication check for {endpoint}")
+
+    def test_data_flow_between_o365_and_neo4j(self):
+        """Test data flow between O365 and Neo4j database."""
+        # Get users using parent class method
+        users = super().test_can_fetch_users()
+        
+        with GraphDatabase.driver(
+            self.neo4j_uri, 
+            auth=(self.neo4j_user, self.neo4j_password)
+        ) as driver:
+            with driver.session() as session:
+                # Write O365 user data to Neo4j
+                for user in users[:2]:
+                    result = session.run(
+                        "MERGE (u:User {id: $id}) "
+                        "SET u.displayName = $displayName, "
+                        "u.email = $email "
+                        "RETURN u",
+                        id=user.get('id'),
+                        displayName=user.get('displayName'),
+                        email=user.get('userPrincipalName')
+                    )
+                    self.assertIsNotNone(result.single(), "Failed to write user to Neo4j")
+                
+                # Verify data in Neo4j
+                result = session.run("MATCH (u:User) RETURN count(u) as count")
+                record = result.single()
+                self.assertGreaterEqual(record["count"], 1, "No users found in Neo4j")
+
+    def test_api_integration_with_third_party_systems(self):
+        """Test integration with third-party systems via API"""
+        user_id = self._get_current_user_id()
+        
+        # Create test calendar event using correct endpoint
+        event_data = {
+            "subject": "Integration Test Meeting",
+            "body": {
+                "contentType": "HTML",
+                "content": "This is a test meeting created by integration tests."
+            },
+            "start": {
+                "dateTime": "2025-03-26T10:00:00",
+                "timeZone": "Pacific Standard Time"
+            },
+            "end": {
+                "dateTime": "2025-03-26T11:00:00",
+                "timeZone": "Pacific Standard Time"
+            }
+        }
+        
+        create_url = f"https://graph.microsoft.com/v1.0/users/{user_id}/events"
+        response = requests.post(create_url, headers=self.headers, json=event_data)
+        
+        print(f"Response status: {response.status_code}")  # Debug output
+        print(f"Response content: {response.text}")  # Debug output
+        
+        self.assertEqual(response.status_code, 201, "Failed to create calendar event")
+        
+        # Cleanup if creation succeeded
+        if response.status_code == 201:
+            event_id = response.json().get('id')
+            delete_url = f"{create_url}/{event_id}"
+            delete_response = requests.delete(delete_url, headers=self.headers)
+            self.assertEqual(delete_response.status_code, 204, "Failed to delete test event")
+
+
+    def test_cross_service_integration(self):
+        """Test integration between multiple O365 services."""
+        # Create SharePoint site
+        site_response = requests.post(
+            "https://graph.microsoft.com/v1.0/sites/root/sites",
+            headers=self.headers,
+            json={
+                "displayName": "Integration Test Site",
+                "description": "Site for testing cross-service integration",
+                "templateId": "TEAMCHANNEL#0"
+            }
+        )
+        
+        if site_response.status_code == 403:
+            self.skipTest("No permissions to create SharePoint sites")
+        self.assertEqual(site_response.status_code, 201, "Failed to create SharePoint site")
+        site_id = site_response.json().get('id')
+        
+        # Create document library
+        library_response = requests.post(
+            f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives",
+            headers=self.headers,
+            json={
+                "name": "TestDocuments",
+                "description": "Library for integration testing"
+            }
+        )
+        self.assertEqual(library_response.status_code, 201, "Failed to create document library")
+        drive_id = library_response.json().get('id')
+        
+        # Upload test document
+        upload_response = requests.put(
+            f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/testfile.txt:/content",
+            headers={"Authorization": f"Bearer {self.access_token}"},
+            data="Integration test content"
+        )
+        self.assertEqual(upload_response.status_code, 201, "Failed to upload document")
+        file_id = upload_response.json().get('id')
+        
+        # Cleanup
+        delete_response = requests.delete(
+            f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}",
+            headers=self.headers
+        )
+        self.assertEqual(delete_response.status_code, 204, "Failed to delete test document")
+
+    def test_integration_error_handling(self):
+        """Test error handling in integration scenarios."""
+        # Invalid endpoint
+        response = requests.get(
+            "https://graph.microsoft.com/v1.0/non_existent_endpoint",
+            headers=self.headers
+        )
+        self.assertEqual(response.status_code, 404, "Expected 404 for invalid endpoint")
+        
+        # Invalid data submission
+        response = requests.post(
+            "https://graph.microsoft.com/v1.0/users",
+            headers=self.headers,
+            json={"invalidProperty": "value"}
+        )
+        self.assertIn(response.status_code, [400, 404], "Expected client error for invalid data")
+        
+        # Expired token handling
+        response = requests.get(
+            "https://graph.microsoft.com/v1.0/users",
+            headers={"Authorization": "Bearer ExpiredTokenValue"}
+        )
+        self.assertEqual(response.status_code, 401, "Expected 401 for expired token")
