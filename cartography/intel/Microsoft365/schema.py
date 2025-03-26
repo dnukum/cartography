@@ -1,5 +1,5 @@
 """
-O365 schema definitions for Cartography.
+Microsoft365 schema definitions for Cartography.
 """
 from dataclasses import dataclass, field
 from typing import List
@@ -9,7 +9,7 @@ from cartography.models.core.nodes import CartographyNodeProperties, Cartography
 from cartography.models.core.relationships import CartographyRelProperties, CartographyRelSchema
 
 # ==============================
-# O365 USER SCHEMA
+# Microsoft365 USER SCHEMA
 # ==============================
 @dataclass(frozen=True)
 class O365UserProperties(CartographyNodeProperties):

@@ -1,7 +1,7 @@
 import unittest
 import requests
 from neo4j import GraphDatabase
-from .test_o365_basic import TestO365BasicFunctionality
+from .test_Microsoft365_basic import TestO365BasicFunctionality
 
 class TestO365Neo4jSync(TestO365BasicFunctionality):
     def setUp(self):
