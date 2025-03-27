@@ -1,18 +1,18 @@
 """
-API functions for syncing O365 data to Cartography using schema-based loading.
+API functions for syncing Msft365 data to Cartography using schema-based loading.
 """
 
 import logging
 from typing import Dict, List, Optional, Any
 import requests
 from cartography.util.neo4j import load_node_data, load_relationship_data, GraphJob
-from cartography.intel.o365.schema import (
-    O365UserSchema,
-    O365GroupSchema,
-    O365OrganizationalUnitSchema,
-    O365UserToGroupRelSchema,
-    O365OUToUserRelSchema,
-    O365OUToGroupRelSchema
+from cartography.intel.msft365.schema import (
+    Msft365UserSchema,
+    Msft365GroupSchema,
+    Msft365OrganizationalUnitSchema,
+    Msft365UserToGroupRelSchema,
+    Msft365OUToUserRelSchema,
+    Msft365OUToGroupRelSchema
 )
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ def paginated_api_call(access_token: str, endpoint: str, params: str = "") -> Li
 # Data Collection Functions
 # ==================================================================
 
-def get_o365_users(access_token: str) -> List[Dict]:
+def get_Msft365_users(access_token: str) -> List[Dict]:
     """Retrieve all users from Microsoft Graph API."""
     return paginated_api_call(
         access_token,
@@ -75,7 +75,7 @@ def get_o365_users(access_token: str) -> List[Dict]:
         "$select=id,displayName,userPrincipalName,mail,jobTitle,department"
     )
 
-def get_o365_groups(access_token: str) -> List[Dict]:
+def get_Msft365_groups(access_token: str) -> List[Dict]:
     """Retrieve all groups from Microsoft Graph API."""
     return paginated_api_call(
         access_token,
@@ -83,7 +83,7 @@ def get_o365_groups(access_token: str) -> List[Dict]:
         "$select=id,displayName,description,mail"
     )
 
-def get_o365_organizational_units(access_token: str) -> List[Dict]:
+def get_Msft365_organizational_units(access_token: str) -> List[Dict]:
     """Retrieve administrative units from Microsoft Graph API."""
     try:
         return paginated_api_call(
@@ -141,24 +141,24 @@ def transform_ous(raw_units: List[Dict]) -> List[Dict]:
 # Schema-Based Loading Functions
 # ==================================================================
 
-def load_o365_users(neo4j_session, users: List[Dict], update_tag: str) -> None:
-    """Load users using O365UserSchema."""
+def load_Msft365_users(neo4j_session, users: List[Dict], update_tag: str) -> None:
+    """Load users using Msft365UserSchema."""
     user_data = [{**u, "lastupdated": update_tag} for u in users]
-    load_node_data(neo4j_session, O365UserSchema(), user_data, update_tag)
+    load_node_data(neo4j_session, Msft365UserSchema(), user_data, update_tag)
     logger.info(f"Loaded {len(user_data)} users")
 
-def load_o365_groups(neo4j_session, groups: List[Dict], update_tag: str) -> None:
-    """Load groups using O365GroupSchema."""
+def load_Msft365_groups(neo4j_session, groups: List[Dict], update_tag: str) -> None:
+    """Load groups using Msft365GroupSchema."""
     group_data = [{**g, "lastupdated": update_tag} for g in groups]
-    load_node_data(neo4j_session, O365GroupSchema(), group_data, update_tag)
+    load_node_data(neo4j_session, Msft365GroupSchema(), group_data, update_tag)
     logger.info(f"Loaded {len(group_data)} groups")
 
-def load_o365_organizational_units(neo4j_session, ous: List[Dict], update_tag: str) -> None:
-    """Load OUs using O365OrganizationalUnitSchema."""
+def load_Msft365_organizational_units(neo4j_session, ous: List[Dict], update_tag: str) -> None:
+    """Load OUs using Msft365OrganizationalUnitSchema."""
     if not ous:
         return
     ou_data = [{**ou, "lastupdated": update_tag} for ou in ous]
-    load_node_data(neo4j_session, O365OrganizationalUnitSchema(), ou_data, update_tag)
+    load_node_data(neo4j_session, Msft365OrganizationalUnitSchema(), ou_data, update_tag)
     logger.info(f"Loaded {len(ou_data)} organizational units")
 
 def load_user_group_relationships(neo4j_session, groups: List[Dict], access_token: str, update_tag: str) -> None:
@@ -175,7 +175,7 @@ def load_user_group_relationships(neo4j_session, groups: List[Dict], access_toke
     if relationships:
         load_relationship_data(
             neo4j_session,
-            O365UserToGroupRelSchema(),
+            Msft365UserToGroupRelSchema(),
             relationships,
             update_tag
         )
@@ -193,57 +193,57 @@ def load_ou_relationships(neo4j_session, ous: List[Dict], access_token: str, upd
 
 def run_cleanup_jobs(neo4j_session, common_job_parameters: Dict) -> None:
     """Schema-based cleanup using GraphJob."""
-    logger.info("Running O365 cleanup")
+    logger.info("Running Msft365 cleanup")
     
     cleanup_jobs = [
-        GraphJob.from_node_schema(O365UserSchema(), common_job_parameters),
-        GraphJob.from_node_schema(O365GroupSchema(), common_job_parameters),
-        GraphJob.from_node_schema(O365OrganizationalUnitSchema(), common_job_parameters)
+        GraphJob.from_node_schema(Msft365UserSchema(), common_job_parameters),
+        GraphJob.from_node_schema(Msft365GroupSchema(), common_job_parameters),
+        GraphJob.from_node_schema(Msft365OrganizationalUnitSchema(), common_job_parameters)
     ]
 
     for job in cleanup_jobs:
         job.run(neo4j_session)
     
-    logger.info("Completed O365 cleanup")
+    logger.info("Completed Msft365 cleanup")
 
 # ==================================================================
 # Sync Orchestration
 # ==================================================================
 
-def sync_o365_users(neo4j_session, tenant_id: str, client_id: str, client_secret: str, update_tag: str, _: Dict) -> List[Dict]:
-    """Full sync workflow for O365 users."""
-    logger.info("Syncing O365 users")
+def sync_Msft365_users(neo4j_session, tenant_id: str, client_id: str, client_secret: str, update_tag: str, _: Dict) -> List[Dict]:
+    """Full sync workflow for Msft365 users."""
+    logger.info("Syncing Msft365 users")
     access_token = get_access_token(tenant_id, client_id, client_secret)
-    raw_users = get_o365_users(access_token)
+    raw_users = get_Msft365_users(access_token)
     transformed = transform_users(raw_users)
-    load_o365_users(neo4j_session, transformed, update_tag)
+    load_Msft365_users(neo4j_session, transformed, update_tag)
     return transformed
 
-def sync_o365_groups(neo4j_session, tenant_id: str, client_id: str, client_secret: str, update_tag: str, _: Dict) -> List[Dict]:
-    """Full sync workflow for O365 groups."""
-    logger.info("Syncing O365 groups")
+def sync_Msft365_groups(neo4j_session, tenant_id: str, client_id: str, client_secret: str, update_tag: str, _: Dict) -> List[Dict]:
+    """Full sync workflow for Msft365 groups."""
+    logger.info("Syncing Msft365 groups")
     access_token = get_access_token(tenant_id, client_id, client_secret)
-    raw_groups = get_o365_groups(access_token)
+    raw_groups = get_Msft365_groups(access_token)
     transformed = transform_groups(raw_groups)
-    load_o365_groups(neo4j_session, transformed, update_tag)
+    load_Msft365_groups(neo4j_session, transformed, update_tag)
     return transformed
 
-def sync_o365_organizational_units(neo4j_session, tenant_id: str, client_id: str, client_secret: str, update_tag: str, _: Dict) -> List[Dict]:
-    """Full sync workflow for O365 organizational units."""
-    logger.info("Syncing O365 organizational units")
+def sync_Msft365_organizational_units(neo4j_session, tenant_id: str, client_id: str, client_secret: str, update_tag: str, _: Dict) -> List[Dict]:
+    """Full sync workflow for Msft365 organizational units."""
+    logger.info("Syncing Msft365 organizational units")
     access_token = get_access_token(tenant_id, client_id, client_secret)
-    raw_units = get_o365_organizational_units(access_token)
+    raw_units = get_Msft365_organizational_units(access_token)
     transformed = transform_ous(raw_units)
-    load_o365_organizational_units(neo4j_session, transformed, update_tag)
+    load_Msft365_organizational_units(neo4j_session, transformed, update_tag)
     return transformed
 
-def sync_o365_user_group_relationships(neo4j_session, tenant_id: str, client_id: str, client_secret: str, groups: List[Dict], update_tag: str, _: Dict) -> None:
+def sync_Msft365_user_group_relationships(neo4j_session, tenant_id: str, client_id: str, client_secret: str, groups: List[Dict], update_tag: str, _: Dict) -> None:
     """Sync user-group relationships."""
     logger.info("Syncing user-group relationships")
     access_token = get_access_token(tenant_id, client_id, client_secret)
     load_user_group_relationships(neo4j_session, groups, access_token, update_tag)
 
-def sync_o365_ou_relationships(neo4j_session, tenant_id: str, client_id: str, client_secret: str, ous: List[Dict], update_tag: str, _: Dict) -> None:
+def sync_Msft365_ou_relationships(neo4j_session, tenant_id: str, client_id: str, client_secret: str, ous: List[Dict], update_tag: str, _: Dict) -> None:
     """Sync OU relationships."""
     if not ous:
         return

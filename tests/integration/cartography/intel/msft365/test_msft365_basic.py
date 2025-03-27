@@ -3,18 +3,18 @@ import os
 import requests
 from neo4j import GraphDatabase
 
-# TestO365BasicFunctionality
+# Test Msft365BasicFunctionality
 #   Attempts to authenticate with Microsoft Graph API
 #   Verifies that the authentication succeeds (status code 200)
 #   Confirms that an access token is returned
 #   Stores the token for potential use in other tests
 
-class TestO365BasicFunctionality(unittest.TestCase):
+class TestMsft365BasicFunctionality(unittest.TestCase):
     def setUp(self):
         # Get credentials from environment variables
-        self.tenant_id = os.environ.get('O365_TENANT_ID')
-        self.client_id = os.environ.get('O365_CLIENT_ID')
-        self.client_secret = os.environ.get('O365_CLIENT_SECRET')
+        self.tenant_id = os.environ.get('Msft365_TENANT_ID')
+        self.client_id = os.environ.get('Msft365_CLIENT_ID')
+        self.client_secret = os.environ.get('Msft365_CLIENT_SECRET')
         
         # Neo4j connection parameters - use container name instead of localhost
         self.neo4j_uri = os.environ.get('NEO4J_URI', 'bolt://neo4j:7687')
@@ -23,7 +23,7 @@ class TestO365BasicFunctionality(unittest.TestCase):
         
         # Skip test if credentials are not available
         if not all([self.tenant_id, self.client_id, self.client_secret]):
-            self.skipTest("O365 credentials not available")
+            self.skipTest("Msft365 credentials not available")
         
         # Print credential info for debugging (mask sensitive parts)
         print(f"Testing with tenant ID: {self.tenant_id[:4]}...{self.tenant_id[-4:]}")
