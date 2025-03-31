@@ -13,8 +13,12 @@ from cartography.intel.msft365.msft365 import (
     sync_Msft365_users,
     sync_Msft365_groups,
     sync_Msft365_organizational_units,
+    sync_Msft365_devices,
     sync_Msft365_user_group_relationships,
     sync_Msft365_ou_relationships,
+    sync_Msft365_device_relationships,
+
+    get_access_token,
     run_cleanup_jobs
 )
 
@@ -22,9 +26,11 @@ from cartography.intel.msft365.msft365 import (
 Msft365_USER_LABEL = "Msft365User"
 Msft365_GROUP_LABEL = "Msft365Group"
 Msft365_OU_LABEL = "Msft365OrganizationalUnit"
+Msft_DEVICE_LABEL = "Msft365Device"
 
 Msft365_MEMBER_OF_RELATIONSHIP = "MEMBER_OF"
 Msft365_PART_OF_RELATIONSHIP = "PART_OF"
+Msft365_OWNED_BY_RELATIONSHIP = "OWNED_BY"
 
 logger = logging.getLogger(__name__)
 
@@ -58,34 +64,55 @@ def start_Msft365_ingestion(
     update_tag = common_job_parameters.get('UPDATE_TAG')
     
     try:
+        # Get access token once
+        access_token = get_access_token(tenant_id, client_id, client_secret)
+
         # Sync users from Msft365
         logger.info("Syncing Msft365 users")
         users = sync_Msft365_users(
-            neo4j_session, tenant_id, client_id, client_secret, update_tag, common_job_parameters
+            neo4j_session, access_token, update_tag, common_job_parameters
         )
         
         # Sync groups from Msft365
         logger.info("Syncing Msft365 groups")
         groups = sync_Msft365_groups(
-            neo4j_session, tenant_id, client_id, client_secret, update_tag, common_job_parameters
+            neo4j_session, access_token, update_tag, common_job_parameters
         )
         
         # Sync organizational units from Msft365
         logger.info("Syncing Msft365 organizational units")
         ous = sync_Msft365_organizational_units(
-            neo4j_session, tenant_id, client_id, client_secret, update_tag, common_job_parameters
+            neo4j_session, access_token, update_tag, common_job_parameters
         )
         
+        # Sync devices from Msft365
+        logger.info("Syncing Msft365 devices")
+        devices = sync_Msft365_devices(
+            neo4j_session, access_token, update_tag, common_job_parameters
+        )
+        
+        # Sync device relationships
+        logger.info("Syncing device ownership relationships")
+        sync_Msft365_devices(
+            neo4j_session, access_token, devices, users, update_tag, common_job_parameters
+        )
+
         # Sync relationships between users and groups
         logger.info("Syncing Msft365 user-group relationships")
         sync_Msft365_user_group_relationships(
-            neo4j_session, users, groups, update_tag, common_job_parameters
+            neo4j_session, access_token, groups, update_tag, common_job_parameters
         )
         
         # Sync relationships between OUs and other entities
         logger.info("Syncing Msft365 organizational unit relationships")
         sync_Msft365_ou_relationships(
-            neo4j_session, ous, update_tag, common_job_parameters
+            neo4j_session, access_token, ous, update_tag, common_job_parameters
+        )
+
+        # Sync device relationships
+        logger.info("Syncing device ownership relationships")
+        sync_Msft365_device_relationships(
+            neo4j_session, access_token, devices, users, update_tag, common_job_parameters
         )
         
         # Run cleanup to remove stale data
@@ -93,6 +120,7 @@ def start_Msft365_ingestion(
         run_cleanup_jobs(
             neo4j_session, update_tag, common_job_parameters
         )
+
         
         logger.info("Msft365 sync complete")
         

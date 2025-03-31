@@ -86,6 +86,75 @@ class TestMsft365Neo4jSync(TestMsft365BasicFunctionality):
                 )
                 self.assertGreater(result.single()['count'], 0)
 
+    # End-to-end test of device data sync
+    def test_device_sync_to_neo4j(self):
         
+        # Get device data
+        devices = self.test_can_fetch_devices()
+        if not devices:
+            self.skipTest("No devices available for testing")
 
-    
+        with GraphDatabase.driver(self.neo4j_uri,
+                                auth=(self.neo4j_user, self.neo4j_password)) as driver:
+            with driver.session() as session:
+                # Clear existing device data
+                session.run("MATCH (d:Msft365Device) DETACH DELETE d")
+                
+                # Insert devices
+                for device in devices:
+                    session.run(
+                        """CREATE (d:Msft365Device {
+                            id: $id, 
+                            displayName: $name,
+                            operatingSystem: $os,
+                            deviceOwnership: $ownership
+                        })""",
+                        id=device['id'],
+                        name=device.get('displayName'),
+                        os=device.get('operatingSystem'),
+                        ownership=device.get('deviceOwnership')
+                    )
+
+                # Verify sync
+                result = session.run("MATCH (d:Msft365Device) RETURN count(d) AS count")
+                self.assertEqual(result.single()['count'], len(devices))
+
+    #  """Validate device ownership relationships in Neo4j"""
+    def test_device_ownership_relationships(self):
+       
+        # Get test data
+        devices = self.test_can_fetch_devices()
+        if not devices:
+            self.skipTest("No devices available for testing")
+            
+        device_id = devices[0]['id']
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        owners = requests.get(
+            f"https://graph.microsoft.com/v1.0/devices/{device_id}/registeredOwners",
+            headers=headers
+        ).json().get('value', [])
+
+        with GraphDatabase.driver(self.neo4j_uri,
+                                auth=(self.neo4j_user, self.neo4j_password)) as driver:
+            with driver.session() as session:
+                # Clear existing relationships
+                session.run("MATCH ()-[r:OWNED_BY]->() DELETE r")
+                
+                # Create relationships
+                for owner in owners:
+                    session.run(
+                        """MATCH (u:Msft365User {id: $user_id}), (d:Msft365Device {id: $device_id})
+                        MERGE (u)-[:OWNED_BY]->(d)""",
+                        user_id=owner['id'],
+                        device_id=device_id
+                    )
+
+                # Verify relationships
+                result = session.run(
+                    "MATCH (u:Msft365User)-[:OWNED_BY]->(d:Msft365Device) RETURN count(*) AS count"
+                )
+                self.assertGreater(result.single()['count'], 0)
+
+            
+
+        

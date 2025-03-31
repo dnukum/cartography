@@ -111,3 +111,43 @@ class Msft365OrganizationalUnitSchema(CartographyNodeSchema):
             Msft365OUToGroupRelSchema(),
         ]
     )
+
+
+# ==============================
+# Msft365 DEVICE SCHEMA
+# ==============================
+
+@dataclass(frozen=True)
+class Msft365DeviceProperties(CartographyNodeProperties):
+    id: PropertyRef = field(default=PropertyRef('id', 'The device id'))
+    displayName: PropertyRef = field(default=PropertyRef('displayName', 'The display name of the device'))
+    operatingSystem: PropertyRef = field(default=PropertyRef('operatingSystem', 'The operating system of the device'))
+    deviceOwnership: PropertyRef = field(default=PropertyRef('deviceOwnership', 'Ownership type (Corporate/Personal)'))
+    approximateLastSignInDateTime: PropertyRef = field(
+        default=PropertyRef('approximateLastSignInDateTime', 'Last sign-in timestamp', optional=True)
+    )
+    isCompliant: PropertyRef = field(
+        default=PropertyRef('isCompliant', 'Compliance status', optional=True)
+    )
+
+@dataclass(frozen=True)
+class Msft365DeviceOwnerRelProperties(CartographyRelProperties):
+    firstseen: PropertyRef = field(default=PropertyRef('firstseen', 'The time when this relationship was first seen'))
+    lastupdated: PropertyRef = field(default=PropertyRef('lastupdated', 'The time when this relationship was last updated'))
+
+@dataclass(frozen=True)
+class Msft365DeviceOwnerRelSchema(CartographyRelSchema):
+    target_node_label: str = 'Msft365User'
+    rel_label: str = 'OWNED_BY'
+    direction: str = 'OUTGOING'
+    properties: Msft365DeviceOwnerRelProperties = field(default=Msft365DeviceOwnerRelProperties())
+
+@dataclass(frozen=True)
+class Msft365DeviceSchema(CartographyNodeSchema):
+    label: str = 'Msft365Device'
+    properties: Msft365DeviceProperties = field(default=Msft365DeviceProperties())
+    relationships: List[CartographyRelSchema] = field(
+        default_factory=lambda: [
+            Msft365DeviceOwnerRelSchema(),
+        ]
+    )

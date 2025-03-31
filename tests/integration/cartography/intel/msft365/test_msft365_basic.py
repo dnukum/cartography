@@ -219,5 +219,42 @@ class TestMsft365BasicFunctionality(unittest.TestCase):
             print(f"  - {member.get('displayName')}")
         
         return members
+
+    # Test that we can fetch devices from Microsoft Graph API
+    def test_can_fetch_devices(self):
     
+        # First authenticate to get token
+        access_token = self.test_can_authenticate_with_graph_api()
+        
+        # Set up request headers
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        # Make request to devices endpoint
+        url = "https://graph.microsoft.com/v1.0/devices?$top=5"
+        response = requests.get(url, headers=headers)
+
+        # Print response info for debugging
+        print(f"Devices response status: {response.status_code}")
+        if response.status_code == 403:
+            print("Access denied to devices. Requires Device.Read.All permission")
+            self.skipTest("No device read permissions")
+        elif response.status_code != 200:
+            print(f"Error fetching devices: {response.text}")
+
+        self.assertEqual(response.status_code, 200)
+        
+        # Get devices from response
+        devices = response.json().get("value", [])
+        self.assertIsInstance(devices, list)
+        print(f"Retrieved {len(devices)} devices")
+
+        # Print device details
+        for device in devices[:3]:  # Show first 3 devices
+            print(f" - {device.get('displayName')} ({device.get('operatingSystem')})")
+        return devices
+
+        
 
