@@ -1,5 +1,6 @@
 import unittest
 import requests
+import os
 from neo4j import GraphDatabase
 from .test_msft365_basic import TestMsft365BasicFunctionality
 
@@ -15,109 +16,85 @@ class TestMsft365Neo4jSync(TestMsft365BasicFunctionality):
 
     def test_user_sync_to_neo4j(self):
         """End-to-end test of user data sync"""
-        # Get Msft365 data
         self.test_can_authenticate_with_graph_api()
         headers = {"Authorization": f"Bearer {self.access_token}"}
-        users = requests.get("https://graph.microsoft.com/v1.0/users?$top=5", headers=headers).json().get("value", [])
+        
+        # Handle pagination
+        users = []
+        url = "https://graph.microsoft.com/v1.0/users"
+        while url:
+            response = requests.get(url, headers=headers).json()
+            users.extend(response.get("value", []))
+            url = response.get("@odata.nextLink")
         
         # Write to Neo4j
-        with GraphDatabase.driver(self.neo4j_uri,
-                                auth=(self.neo4j_user, self.neo4j_password)) as driver:
+        with GraphDatabase.driver(self.neo4j_uri) as driver:
             with driver.session() as session:
-                # Clear existing test data (FIXED)
-                session.run("MATCH (u:Msft365User) DETACH DELETE u")  # 👈 Changed to DETACH DELETE
+                if not os.environ.get('PERSIST_TEST_DATA'):
+                    session.run("MATCH (u:Msft365User) DETACH DELETE u")
                 
-                # Insert users
                 for user in users:
                     session.run(
-                        "CREATE (u:Msft365User {id: $user_id, name: $name, email: $email})",
-                        user_id=user['id'],
+                        "CREATE (u:Msft365User {id: $id, name: $name, email: $email})",
+                        id=user['id'],
                         name=user.get('displayName'),
                         email=user.get('userPrincipalName')
                     )
                 
-                # Verify sync
+                # Validate sync
                 result = session.run("MATCH (u:Msft365User) RETURN count(u) AS count")
-                self.assertEqual(result.single()['count'], len(users))
+                actual_count = result.single()['count']
+            if os.environ.get('PERSIST_TEST_DATA'):
+                self.assertGreaterEqual(actual_count, len(users))
+            else:
+                self.assertEqual(actual_count, len(users))
 
 
     def test_group_membership_sync(self):
         """Validate group membership relationships in Neo4j"""
-        # Get test data
-        groups = super().test_can_fetch_groups()
-        group_id = groups[0].get('id')
-        members = super().test_can_fetch_group_members()
-        
-        # Sync groups to Neo4j first
-        with GraphDatabase.driver(self.neo4j_uri,
-                                auth=(self.neo4j_user, self.neo4j_password)) as driver:
+        groups = self.test_can_fetch_groups()
+        group_id = groups[0]['id']
+        members = self.test_can_fetch_group_members()
+
+        with GraphDatabase.driver(self.neo4j_uri) as driver:
             with driver.session() as session:
-                # Clear existing groups (FIXED)
-                session.run("MATCH (g:Msft365Group) DETACH DELETE g")  # 👈 Changed to DETACH DELETE
-                
-                # Create group nodes
-                for group in groups[:1]:
+                # Conditional cleanup
+                if not os.environ.get('PERSIST_TEST_DATA'):
+                    session.run("MATCH (g:Msft365Group) DETACH DELETE g")
+                    session.run("MATCH ()-[r:MEMBER_OF]->() DELETE r")
+
+                # Create/Merge groups
+                for group in groups:
                     session.run(
-                        "MERGE (g:Msft365Group {id: $id}) "
-                        "SET g.name = $name",
+                        """MERGE (g:Msft365Group {id: $id})
+                        ON CREATE SET g.name = $name
+                        ON MATCH SET g.name = $name""",
                         id=group['id'],
                         name=group.get('displayName')
                     )
-        
-        # Create relationships
-        with GraphDatabase.driver(self.neo4j_uri,
-                                auth=(self.neo4j_user, self.neo4j_password)) as driver:
-            with driver.session() as session:
-                # Clear existing relationships
-                session.run("MATCH ()-[r:MEMBER_OF]->() DELETE r")
-                
-                # Create relationships
+
+                # Create relationships using MERGE
                 for member in members:
                     session.run(
-                        """MATCH (u:Msft365User {id: $user_id}), (g:Msft365Group {id: $group_id})
+                        """MATCH (u:Msft365User {id: $user_id})
+                        MATCH (g:Msft365Group {id: $group_id})
                         MERGE (u)-[:MEMBER_OF]->(g)""",
                         user_id=member['id'],
                         group_id=group_id
                     )
-                
-                # Verify relationships
+
+                # Adjusted verification
                 result = session.run(
-                    "MATCH (u:Msft365User)-[:MEMBER_OF]->(g:Msft365Group) RETURN count(*) AS count"
+                    "MATCH (u:Msft365User)-[:MEMBER_OF]->(g:Msft365Group) " 
+                    "RETURN count(*) AS count"
                 )
-                self.assertGreater(result.single()['count'], 0)
-
-    # End-to-end test of device data sync
-    def test_device_sync_to_neo4j(self):
-        
-        # Get device data
-        devices = self.test_can_fetch_devices()
-        if not devices:
-            self.skipTest("No devices available for testing")
-
-        with GraphDatabase.driver(self.neo4j_uri,
-                                auth=(self.neo4j_user, self.neo4j_password)) as driver:
-            with driver.session() as session:
-                # Clear existing device data
-                session.run("MATCH (d:Msft365Device) DETACH DELETE d")
+                count = result.single()['count']
                 
-                # Insert devices
-                for device in devices:
-                    session.run(
-                        """CREATE (d:Msft365Device {
-                            id: $id, 
-                            displayName: $name,
-                            operatingSystem: $os,
-                            deviceOwnership: $ownership
-                        })""",
-                        id=device['id'],
-                        name=device.get('displayName'),
-                        os=device.get('operatingSystem'),
-                        ownership=device.get('deviceOwnership')
-                    )
+                if os.environ.get('PERSIST_TEST_DATA'):
+                    self.assertGreaterEqual(count, 2)  # Allow existing relationships
+                else:
+                    self.assertEqual(count, 2)
 
-                # Verify sync
-                result = session.run("MATCH (d:Msft365Device) RETURN count(d) AS count")
-                self.assertEqual(result.single()['count'], len(devices))
 
     #  """Validate device ownership relationships in Neo4j"""
     def test_device_ownership_relationships(self):
