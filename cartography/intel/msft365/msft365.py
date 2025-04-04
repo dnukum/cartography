@@ -5,8 +5,9 @@ API functions for syncing Msft365 data to Cartography using schema-based loading
 import logging
 from typing import Dict, List, Optional, Any
 import requests
-from cartography.util.neo4j import load_node_data, load_relationship_data, GraphJob
-from cartography.intel.msft365.schema import (
+from cartography.util import load_node_data, load_relationship_data, GraphJob
+
+from cartography.models.msft365 import (
     Msft365UserSchema,
     Msft365GroupSchema,
     Msft365OrganizationalUnitSchema,
@@ -15,7 +16,6 @@ from cartography.intel.msft365.schema import (
     Msft365OUToUserRelSchema,
     Msft365OUToGroupRelSchema,
     Msft365DeviceOwnerRelSchema
-
 )
 
 logger = logging.getLogger(__name__)
